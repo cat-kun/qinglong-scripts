@@ -2,7 +2,8 @@
  * 变量
  * export flyingbirdCookie='XXXXXXXXX'
  * 多号@或换行
- * cron 0 0 * * * ysf.js
+ * cron 0 0 * * *
+ * flyingbird_checkin.js
  */
 const $ = new Env('飞鸟机场签到')
 const axios = require('axios');
@@ -14,8 +15,8 @@ const {
   log
 } = console;
 const Notify = 1; //0为关闭通知，1为打开通知,默认为1
-const debug = 1; //0为关闭调试，1为打开调试,默认为0
-const default_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_1_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 MicroMessenger/8.0.32(0x1800202f) NetType/WIFI Language/zh_CN';
+const debug = 0; //0为关闭调试，1为打开调试,默认为0
+const default_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36';
 const BASE_API = 'http://flyingbird.pro'
 // if ($.isNode()) {
 //   console.log('node环境');
@@ -59,16 +60,16 @@ async function signIn (item) {
       method: 'POST',
       url: `${BASE_API}/user/checkin`,
       headers: {
-        // Host: 'youhui.95516.com',
+        Host: 'flyingbird.pro',
         Accept: '*/*',
         Cookie: `${item}`,
 
         'Accept-Encoding': 'gzip, deflate, br',
         'Content-Type': 'application/json',
-        // 'Origin': 'https://youhui.95516.com',
+        Origin: 'http://flyingbird.pro',
         'Content-Length': 2,
         // 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 /sa-sdk-ios/sensors-verify/analytics.95516.com?production   (com.unionpay.chsp) (cordova 4.5.4) (updebug 0) (version 929) (UnionPay/1.0 CloudPay) (clientVersion 189) (language zh_CN) (upHtml) (walletMode 00) ',
-        // 'Referer': 'https://youhui.95516.com/newsign/public/app/index.html',
+        'Referer': 'http://flyingbird.pro/user',
         'Connection': 'keep-alive',
         'User-Agent': default_UA,
       },
@@ -96,7 +97,7 @@ async function signIn (item) {
         log(`异常：${data}，原因：${data.message}`)
       }
     }).catch(function (error) {
-      console.error(error);
+      console.error('错误', error);
     }).then(res => {
       //这里处理正确返回
       resolve();
