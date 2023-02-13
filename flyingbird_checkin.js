@@ -1,426 +1,468 @@
-/**
- * 变量
- * export flyingbirdCookie='XXXXXXXXX'
- * 多号@或换行
- * cron 0 0 * * *
- * flyingbird_checkin.js
- */
-const $ = new Env('飞鸟机场签到')
-const axios = require('axios');
-let request = require("request");
-request = request.defaults({
-  jar: true
-});
-const {
-  log
-} = console;
-const Notify = 1; //0为关闭通知，1为打开通知,默认为1
-const debug = 0; //0为关闭调试，1为打开调试,默认为0
-const default_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/109.0.0.0 Safari/537.36';
-const BASE_API = 'http://flyingbird.pro'
-// if ($.isNode()) {
-//   console.log('node环境');
-//  } else {
-//   console.log('非node环境');
-// }
+/*
+飞鸟机场签到 https://www.fyb-aff.com/auth/register?code=MYQJ
+以下都以青龙或nodejs环境为准
 
-//此处填写京东账号cookie。
-// let Authorization = []
+下面一行是建议定时,青龙拉库会自动读取
+cron: 0 0 * * *
+*/
+/*
+const和let的区别:
+用const定义的变量以后不能再更改
+用let定义的变量可以改
+进阶内容: const 对象本身不可更改,但是对象里面的属性可以改,与指针有关
+*/
 
-// 判断环境变量里面是否有飞鸟机场Authorization
-// if (process.env.flyingbirdCookie) {
-//   if (process.env.flyingbirdCookie.indexOf('&') > -1) {
-//     Authorization = process.env.flyingbirdCookie.split('&');
-//   } else if (process.env.flyingbirdCookie.indexOf('\n') > -1) {
-//     Authorization = process.env.flyingbirdCookie.split('\n');
-//   } else {
-//     Authorization = [process.env.flyingbirdCookie];
-//   }
-// }
+const $ = new Env('飞鸟机场签到'); //青龙拉库会把 new Env('qwerty') 里面的名字qwerty作为定时任务名
+const got = require('got'); //青龙发包依赖
 
-// console.log('Authorization', Authorization);
+const env_name = 'fybCookie'; //环境变量名字
+const env = process.env[env_name] || ''; //或 process.env.zippoCookie, node读取变量方法. 后面的 || 表示如果前面结果为false或者空字符串或者null或者undifined, 就取后面的值
 
-// 去重
-// Authorization = [...new Set(Authorization.filter(item => !!item))]
+//got的基本用法, 封装一下方便之后直接调用, 新手可以不动他直接用就行
+async function request (opt) {
+  const DEFAULT_RETRY = 3; //请求出错重试三次
+  var resp = null, count = 0;
+  var fn = opt.fn || opt.url;
+  opt.method = opt?.method?.toUpperCase() || 'GET';
+  while (count++ < DEFAULT_RETRY) {
+    try {
+      var err = null;
+      const errcodes = ['ECONNRESET', 'EADDRINUSE', 'ENOTFOUND', 'EAI_AGAIN'];
+      await got(opt).then(t => {
+        resp = t
+      }, e => {
+        err = e;
+        resp = e.response;
+      });
+      if (err) {
+        if (err.name == 'TimeoutError') {
+          console.log(`[${fn}]请求超时(${err.code})，重试第${count}次`);
+        } else if (errcodes.includes(err.code)) {
+          console.log(`[${fn}]请求错误(${err.code})，重试第${count}次`);
+        } else {
+          let statusCode = resp?.statusCode || -1;
+          console.log(`[${fn}]请求错误(${err.message}), 返回[${statusCode}]`);
+          break;
+        }
+      } else {
+        break;
+      }
+    } catch (e) {
+      console.log(`[${fn}]请求错误(${e.message})，重试第${count}次`);
+    };
+  }
+  let { statusCode = -1, headers = null, body = null } = resp;
+  if (body) try { body = JSON.parse(body); } catch { };
+  return { statusCode, headers, result: body };
+}
 
-// console.log(`\n====================共${Authorization.length}个飞鸟机场账号=========\n`);
-let flyingbirdCookie = ($.isNode() ? process.env.flyingbirdCookie : $.getdata("flyingbirdCookie")) || ""
-let flyingbirdCookieArr = [];
-let data = '';
-let msg = '';
-// var hours = new Date().getMonth();
-/**
- * 签到
- * @param {any} item 数据项
- * @returns 
- */
-async function signIn (item) {
-  return new Promise((resolve) => {
-    const options = {
-      method: 'POST',
-      url: `${BASE_API}/user/checkin`,
-      headers: {
-        Host: 'flyingbird.pro',
-        Accept: '*/*',
-        Cookie: `${item}`,
+//脚本入口函数main()
+async function main () {
+  if (env == '') {
+    //没有设置变量,直接退出
+    console.log(`没有填写变量: ${env_name}`);
+    return;
+  }
+  //多账号分割,这里默认是换行(\n)分割,其他情况自己实现
+  //split('\n')会把字符串按照换行符分割, 并把结果存在user_ck数组里
+  let user_ck = env.split('\n');
 
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Content-Type': 'application/json',
-        Origin: 'http://flyingbird.pro',
-        'Content-Length': 2,
-        // 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 /sa-sdk-ios/sensors-verify/analytics.95516.com?production   (com.unionpay.chsp) (cordova 4.5.4) (updebug 0) (version 929) (UnionPay/1.0 CloudPay) (clientVersion 189) (language zh_CN) (upHtml) (walletMode 00) ',
-        'Referer': 'http://flyingbird.pro/user',
-        'Connection': 'keep-alive',
-        'User-Agent': default_UA,
+  let index = 1; //用来给账号标记序号, 从1开始
+  //循环遍历每个账号
+  for (let ck of user_ck) {
+    if (!ck) continue; //跳过空行
+    //默认用#分割openid和session_key, 前面是 openid 后面是 session_key
+    let ck_info = ck.split('#');
+    // let openid = ck_info[0];
+    // let session_key = ck_info[1]; //其实session_key要不要都行, 这里为了教学就填上去
+    //用一个对象代表账号, 里面存放账号信息
+    let user = {
+      index: index,
+      // openid, //简写法, 效果等同于 openid: openid,
+      // session_key: decodeURIComponent(session_key), //注意请求里的session_key是编码后的, 我们先解码一次
+    };
+    index = index + 1; //每次用完序号+1
+    //开始账号任务
+    await userTask(user);
+    //每个账号之间等1~5秒随机时间
+    let rnd_time = Math.floor(Math.random() * 4000) + 1000;
+    console.log(`账号[${user.index}]随机等待${rnd_time / 1000}秒...`);
+    await $.wait(rnd_time);
+  }
+}
+
+async function userTask (user) {
+  //任务逻辑都放这里了, 与脚本入口分开, 方便分类控制并模块化
+  console.log(`\n============= 账号[${user.index}]开始任务 =============`)
+  // await ininttask(user);
+  await signin(user)
+  //后面可以自己加任务, 比如查看账户积分啥的
+  //await chakanjifen(user);
+  //await tom_niubi(user);
+}
+
+//任务列表
+async function ininttask (user) {
+  //user: 用户参数, 里面存放ck和账户信息啥的. 进阶可以用类(class)的方法的代替, 效率更高
+  //养成良好习惯, 每个方法里面都用try catch包起来, 这样出错了也不影响下一个步骤进行
+  try {
+    //请求: https://membercenter.zippo.com.cn/s2/interface/data.aspx?action=ininttask
+    let urlObject = {
+      fn: 'ininttask', //调用方法名, 方便debug时候看是哪个方法出问题
+
+      method: 'post', //post方法
+
+      //url问号前面的地址
+      url: 'https://membercenter.zippo.com.cn/s2/interface/data.aspx',
+      //url问号后面的参数, 字典形式
+      searchParams: {
+        action: 'ininttask',
       },
+
+      //请求头
+      //got会自动填入url的host部分, 不需要手动设置host
+      //如果是post,put,delete, got也会自动计算Content-Length
+      //后面使用form/json的话, got会自动设置content-type
+      //所以上面三个都可以省略
+      headers: {
+        Connection: 'keep-alive',
+        //参数名字中间带-的需要用引号包起来, 不能直接写, 其他的可以省略引号
+        'Accept-Encoding': 'gzip,compress,br,deflate', //这个一般来说不重要, 可以省却
+        'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_1_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 MicroMessenger/8.0.32(0x1800202f) NetType/WIFI Language/zh_CN', //简称UA
+        Referer: 'https://servicewechat.com/wxaa75ffd8c2d75da7/56/page-frame.html',
+      },
+
+      //请求体部分,注意get方法没有请求体
+      //form对应application/x-www-form-urlencoded
+      //json对应application/json
+      //注意form会自动对内容进行编码, 不需要自己再手动编码
+      form: {
+        openid: user.openid,
+        session_key: user.session_key,
+        unionid: '',
+        appid: 'wxaa75ffd8c2d75da7',
+      },
+
+      //超时设置, 超过15000毫秒自动停止请求
+      timeout: 15000,
     }
-    if (debug) {
-      log(`\n【debug】=============== 这是  请求 url ===============`);
-      log(JSON.stringify(options));
-    }
-    axios.request(options).then(async function (response) {
-      try {
-        log('response:', response)
-        data = response.data;
-        if (debug) {
-          log(`\n\n【debug】===============这是 返回data==============`);
-          log(JSON.stringify(response.data));
+
+    //解构返回, 只需要result也可以这样:
+    // const {result} = await request(urlObject);
+    const { statusCode, headers, result } = await request(urlObject);
+    // ?.语法: 前面的结果为null/undefined的时候不再执行后面操作, 可以简单的防止出错
+    if (result?.errcode == 0) {
+      //errcode==0的时候表示请求正常
+      let tasklist = result?.data?.task || []; //取task数组,如果取不到就取空数组防止下面出错
+      //遍历tasklist里面的元素, 也就是每个任务
+      for (let task of tasklist) {
+        //判断不同任务类型做不同请求
+        switch (task.title) {
+          //签到任务调用签到接口
+          case '签到':
+            if (task.task_status == 0) {
+              //task_status是0的时候代表未签到,这时候才去签到
+              let rnd_time = Math.floor(Math.random() * 1000) + 1000;
+              console.log(`账号[${user.index}]随机等待${rnd_time / 1000}秒...`);
+              await $.wait(rnd_time); //随机等待
+              await signin(user);
+            } else {
+              console.log(`账号[${user.index}]今天已签到`);
+            }
+            break;
+          //其他任务调用通用任务接口
+          default:
+            if (task.task_status == 0) {
+              //task_status是0代表未完成
+              console.log(`账号[${user.index}]任务[${task.title}]未完成, 去做任务`);
+              let rnd_time = Math.floor(Math.random() * 1000) + 1000;
+              console.log(`账号[${user.index}]随机等待${rnd_time / 1000}秒...`);
+              await $.wait(rnd_time); //随机等待
+              await dotask(user, task, 1); //做任务
+              rnd_time = Math.floor(Math.random() * 1000) + 1000; //前面已经用过let定义rnd_time了,这里直接复用不要再let一次,不然会出错
+              console.log(`账号[${user.index}]随机等待${rnd_time / 1000}秒...`);
+              await $.wait(rnd_time); //随机等待
+              await dotask(user, task, 2); //领奖励
+            } else if (task.task_status == 1) {
+              //task_status是1代表已完成未领取奖励
+              console.log(`账号[${user.index}]任务[${task.title}]已完成, 未领取奖励, 去领取`);
+              let rnd_time = Math.floor(Math.random() * 1000) + 1000;
+              console.log(`账号[${user.index}]随机等待${rnd_time / 1000}秒...`);
+              await $.wait(rnd_time); //随机等待
+              await dotask(user, task, 2); //领奖励
+            } else {
+              //task_status是2代表已领取奖励
+              console.log(`账号[${user.index}]任务[${task.title}]已领取奖励`);
+            }
+            break;
         }
-        if (data.code == 200) {
-          log(data.message)
-        } else
-          log(data.message)
-
-
-
-      } catch (e) {
-        log(`异常：${data}，原因：${data.message}`)
       }
-    }).catch(function (error) {
-      console.error('错误', error);
-    }).then(res => {
-      //这里处理正确返回
-      resolve();
-    });
-  })
-
-}
-
-async function Envs () {
-  if (flyingbirdCookie) {
-    if (flyingbirdCookie.indexOf("@") != -1) {
-      flyingbirdCookie.split("@").forEach((item) => {
-
-        flyingbirdCookieArr.push(item);
-      });
-    } else if (flyingbirdCookie.indexOf("\n") != -1) {
-      flyingbirdCookie.split("\n").forEach((item) => {
-        flyingbirdCookieArr.push(item);
-      });
     } else {
-      flyingbirdCookieArr.push(flyingbirdCookie);
+      //打印请求错误信息
+      console.log(`账号[${user.index}]请求任务列表出错[${result?.errcode}]: ${result?.errmsg}`);
     }
-  } else {
-    log(`\n 【${$.name}】：未填写变量 flyingbirdCookie`)
-    return;
+  } catch (e) {
+    //打印错误信息
+    console.log(e);
   }
-
-  return true;
 }
 
-function addNotifyStr (str, is_log = true) {
-  if (is_log) {
-    log(`${str}\n`)
-  }
-  msg += `${str}\n`
-}
+//签到接口
+async function signin (user) {
+  try {
+    //请求: https://membercenter.zippo.com.cn/s2/interface/data.aspx?action=signin
+    let urlObject = {
+      fn: 'signin',
+      method: 'post', //post方法
 
-var timestamp = Math.round(new Date().getTime() / 1000).toString();
-!(async () => {
-  if (typeof $request !== "undefined") {
-    await GetRewrite();
-  } else {
-    if (!(await Envs()))
-      return;
-    else {
+      //url问号前面的地址
+      url: 'http://flyingbird.pro/user/checkin',
+      //url问号后面的参数, 字典形式, 其实我们可以发现这个小程序不同接口的区别, 就是action和请求体参数不一样
+      searchParams: {
+        action: 'signin',
+      },
 
-      log(`\n\n=============================================    \n脚本执行 - 北京时间(UTC+8)：${new Date(
-        new Date().getTime() + new Date().getTimezoneOffset() * 60 * 1000 +
-        8 * 60 * 60 * 1000).toLocaleString()} \n=============================================\n`);
+      //请求头, 所有接口通用
+      headers: {
+        Connection: 'keep-alive',
+        'Accept-Encoding': 'gzip,compress,br,deflate',
+        'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_1_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 MicroMessenger/8.0.32(0x1800202f) NetType/WIFI Language/zh_CN',
+        Referer: 'https://servicewechat.com/wxaa75ffd8c2d75da7/56/page-frame.html',
+        Cookie: user.cookie
+      },
 
+      //请求体
+      form: {
+        daykey: $.time('yyyyMMdd'), //封装在Env()里面的方法, 生成当时的时间格式
+        openid: user.openid,
+        session_key: user.session_key,
+        unionid: '',
+        appid: 'wxaa75ffd8c2d75da7',
+      },
 
-
-      // log(`\n============ 微信公众号：柠檬玩机交流 ============`)
-      log(`\n=================== 共找到 ${flyingbirdCookieArr.length} 个账号 ===================`)
-      if (debug) {
-        log(`【debug】 这是你的全部账号数组:\n ${flyingbirdCookieArr}`);
-      }
-      for (let index = 0; index < flyingbirdCookieArr.length; index++) {
-
-        let num = index + 1
-        addNotifyStr(`\n==== 开始【第 ${num} 个账号】====\n`, true)
-
-        flyingbirdCookie = flyingbirdCookieArr[index];
-        await signIn(flyingbirdCookie)
-      }
-      await SendMsg(msg);
+      //超时设置
+      timeout: 15000,
     }
-  }
-})()
-  .catch((e) => log(e))
-  .finally(() => $.done())
 
-// !(async () => { 
-//   Authorization.forEach((item) => {
-//   await signIn(item)
-// })
-// })
-
-/**
- * 发送消息
- * @param {string} message 消息
- * @returns 
- */
-async function SendMsg (message) {
-  if (!message)
-    return;
-
-  if (Notify > 0) {
-    if ($.isNode()) {
-      var notify = require('./sendNotify');
-      await notify.sendNotify($.name, message);
+    //解构返回
+    const { result } = await request(urlObject);
+    console.log('result', result);
+    if (result?.errcode == 0) {
+      console.log(`账号[${user.index}]签到成功`)
     } else {
-      $.msg(message);
+      //打印请求错误信息
+      console.log(`账号[${user.index}]签到失败[${result?.errcode}]: ${result?.errmsg}`);
     }
-  } else {
-    log(message);
+  } catch (e) {
+    //打印错误信息
+    console.log(e);
   }
 }
 
-function Env (t, e) {
-  "undefined" != typeof process && JSON.stringify(process.env).indexOf("GITHUB") > -1 && process.exit(0);
+//任务接口
+async function dotask (user, task, acttype) {
+  try {
+    //请求: https://membercenter.zippo.com.cn/s2/interface/data.aspx?action=signin
+    let urlObject = {
+      fn: 'dotask',
+      method: 'post', //post方法
 
-  class s {
-    constructor(t) { this.env = t }
+      //url问号前面的地址
+      url: 'https://membercenter.zippo.com.cn/s2/interface/data.aspx',
+      //url问号后面的参数, 字典形式
+      searchParams: {
+        action: 'dotask',
+      },
 
-    send (t, e = "GET") {
-      t = "string" == typeof t ? { url: t } : t;
-      let s = this.get;
-      return "POST" === e && (s = this.post), new Promise((e, i) => { s.call(this, t, (t, s, r) => { t ? i(t) : e(s) }) })
+      //请求头, 所有接口通用
+      headers: {
+        Connection: 'keep-alive',
+        'Accept-Encoding': 'gzip,compress,br,deflate',
+        'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_1_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 MicroMessenger/8.0.32(0x1800202f) NetType/WIFI Language/zh_CN',
+        Referer: 'https://servicewechat.com/wxaa75ffd8c2d75da7/56/page-frame.html',
+      },
+
+      //请求体
+      form: {
+        taskid: task.taskid, //任务id
+        acttype: acttype, //任务操作, 1代表完成任务, 2代表领取奖励, 这个靠自己理解
+        openid: user.openid,
+        session_key: user.session_key,
+        unionid: '',
+        appid: 'wxaa75ffd8c2d75da7',
+      },
+
+      //超时设置
+      timeout: 15000,
     }
 
-    get (t) { return this.send.call(this.env, t) }
+    //看是做任务还是领取任务
+    let str = acttype == 1 ? '完成任务' : '领取奖励';
 
-    post (t) { return this.send.call(this.env, t, "POST") }
+    //解构返回
+    const { statusCode, headers, result } = await request(urlObject);
+    if (result?.errcode == 0) {
+      console.log(`账号[${user.index}]${str}[${task.title}]成功`)
+    } else {
+      //打印请求错误信息
+      console.log(`账号[${user.index}]${str}[${task.title}]失败[${result?.errcode}]: ${result?.errmsg}`);
+    }
+  } catch (e) {
+    //打印错误信息
+    console.log(e);
   }
+}
 
+//调用main()
+main();
+
+function Env (name) {
   return new class {
-    constructor(t, e) { this.name = t, this.http = new s(this), this.data = null, this.dataFile = "box.dat", this.logs = [], this.isMute = !1, this.isNeedRewrite = !1, this.logSeparator = "\n", this.startTime = (new Date).getTime(), Object.assign(this, e), this.log("", `🔔${this.name}, 开始!`) }
-
-    isNode () { return "undefined" != typeof module && !!module.exports }
-
-    isQuanX () { return "undefined" != typeof $task }
-
-    isSurge () { return "undefined" != typeof $httpClient && "undefined" == typeof $loon }
-
-    isLoon () { return "undefined" != typeof $loon }
-
-    toObj (t, e = null) { try { return JSON.parse(t) } catch { return e } }
-
-    toStr (t, e = null) { try { return JSON.stringify(t) } catch { return e } }
-
-    getjson (t, e) {
-      let s = e;
-      const i = this.getdata(t);
-      if (i) try { s = JSON.parse(this.getdata(t)) } catch { }
-      return s
+    constructor(name) {
+      this.name = name;
+      this.startTime = Date.now();
+      this.log(`[${this.name}]开始运行\n`, { time: true });
+      this.notifyStr = [];
+      this.notifyFlag = true;
+      this.userIdx = 0;
+      this.userList = [];
+      this.userCount = 0;
     }
-
-    setjson (t, e) { try { return this.setdata(JSON.stringify(t), e) } catch { return !1 } }
-
-    getScript (t) { return new Promise(e => { this.get({ url: t }, (t, s, i) => e(i)) }) }
-
-    runScript (t, e) {
-      return new Promise(s => {
-        let i = this.getdata("@chavy_boxjs_userCfgs.httpapi");
-        i = i ? i.replace(/\n/g, "").trim() : i;
-        let r = this.getdata("@chavy_boxjs_userCfgs.httpapi_timeout");
-        r = r ? 1 * r : 20, r = e && e.timeout ? e.timeout : r;
-        const [o, h] = i.split("@"), n = {
-          url: `http://${h}/v1/scripting/evaluate`,
-          body: { script_text: t, mock_type: "cron", timeout: r },
-          headers: { "X-Key": o, Accept: "*/*" }
-        };
-        this.post(n, (t, e, i) => s(i))
-      }).catch(t => this.logErr(t))
+    log (msg, options = {}) {
+      let opt = { console: true };
+      Object.assign(opt, options);
+      if (opt.time) {
+        let fmt = opt.fmt || 'hh:mm:ss';
+        msg = `[${this.time(fmt)}]` + msg;
+      }
+      if (opt.notify) this.notifyStr.push(msg);
+      if (opt.console) console.log(msg);
     }
-
-    loaddata () {
-      if (!this.isNode()) return {};
-      {
-        this.fs = this.fs ? this.fs : require("fs"), this.path = this.path ? this.path : require("path");
-        const t = this.path.resolve(this.dataFile), e = this.path.resolve(process.cwd(), this.dataFile),
-          s = this.fs.existsSync(t), i = !s && this.fs.existsSync(e);
-        if (!s && !i) return {};
-        {
-          const i = s ? t : e;
-          try { return JSON.parse(this.fs.readFileSync(i)) } catch (t) { return {} }
+    read_env (Class) {
+      let envStrList = ckNames.map(x => process.env[x]);
+      for (let env_str of envStrList.filter(x => !!x)) {
+        let sp = envSplitor.filter(x => env_str.includes(x));
+        let splitor = sp.length > 0 ? sp[0] : envSplitor[0];
+        for (let ck of env_str.split(splitor).filter(x => !!x)) {
+          this.userList.push(new Class(ck));
         }
       }
+      this.userCount = this.userList.length;
+      if (!this.userCount) {
+        this.log(`未找到变量，请检查变量${ckNames.map(x => '[' + x + ']').join('或')}`, { notify: true });
+        return false;
+      }
+      this.log(`共找到${this.userCount}个账号`);
+      return true;
     }
-
-    writedata () {
-      if (this.isNode()) {
-        this.fs = this.fs ? this.fs : require("fs"), this.path = this.path ? this.path : require("path");
-        const t = this.path.resolve(this.dataFile), e = this.path.resolve(process.cwd(), this.dataFile),
-          s = this.fs.existsSync(t), i = !s && this.fs.existsSync(e), r = JSON.stringify(this.data);
-        s ? this.fs.writeFileSync(t, r) : i ? this.fs.writeFileSync(e, r) : this.fs.writeFileSync(t, r)
+    async threads (taskName, conf, opt = {}) {
+      while (conf.idx < $.userList.length) {
+        let user = $.userList[conf.idx++];
+        if (!user.valid) continue;
+        await user[taskName](opt);
       }
     }
-
-    lodash_get (t, e, s) {
-      const i = e.replace(/\[(\d+)\]/g, ".$1").split(".");
-      let r = t;
-      for (const t of i) if (r = Object(r)[t], void 0 === r) return s;
-      return r
+    async threadTask (taskName, thread) {
+      let taskAll = [];
+      let taskConf = { idx: 0 };
+      while (thread--) taskAll.push(this.threads(taskName, taskConf));
+      await Promise.all(taskAll);
     }
-
-    lodash_set (t, e, s) { return Object(t) !== t ? t : (Array.isArray(e) || (e = e.toString().match(/[^.[\]]+/g) || []), e.slice(0, -1).reduce((t, s, i) => Object(t[s]) === t[s] ? t[s] : t[s] = Math.abs(e[i + 1]) >> 0 == +e[i + 1] ? [] : {}, t)[e[e.length - 1]] = s, t) }
-
-    getdata (t) {
-      let e = this.getval(t);
-      if (/^@/.test(t)) {
-        const [, s, i] = /^@(.*?)\.(.*?)$/.exec(t), r = s ? this.getval(s) : "";
-        if (r) try {
-          const t = JSON.parse(r);
-          e = t ? this.lodash_get(t, i, "") : e
-        } catch (t) { e = "" }
-      }
-      return e
-    }
-
-    setdata (t, e) {
-      let s = !1;
-      if (/^@/.test(e)) {
-        const [, i, r] = /^@(.*?)\.(.*?)$/.exec(e), o = this.getval(i),
-          h = i ? "null" === o ? null : o || "{}" : "{}";
-        try {
-          const e = JSON.parse(h);
-          this.lodash_set(e, r, t), s = this.setval(JSON.stringify(e), i)
-        } catch (e) {
-          const o = {};
-          this.lodash_set(o, r, t), s = this.setval(JSON.stringify(o), i)
-        }
-      } else s = this.setval(t, e);
-      return s
-    }
-
-    getval (t) { return this.isSurge() || this.isLoon() ? $persistentStore.read(t) : this.isQuanX() ? $prefs.valueForKey(t) : this.isNode() ? (this.data = this.loaddata(), this.data[t]) : this.data && this.data[t] || null }
-
-    setval (t, e) { return this.isSurge() || this.isLoon() ? $persistentStore.write(t, e) : this.isQuanX() ? $prefs.setValueForKey(t, e) : this.isNode() ? (this.data = this.loaddata(), this.data[e] = t, this.writedata(), !0) : this.data && this.data[e] || null }
-
-    initGotEnv (t) { this.got = this.got ? this.got : require("got"), this.cktough = this.cktough ? this.cktough : require("tough-cookie"), this.ckjar = this.ckjar ? this.ckjar : new this.cktough.CookieJar, t && (t.headers = t.headers ? t.headers : {}, void 0 === t.headers.Cookie && void 0 === t.cookieJar && (t.cookieJar = this.ckjar)) }
-
-    get (t, e = (() => { })) {
-      t.headers && (delete t.headers["Content-Type"], delete t.headers["Content-Length"]), this.isSurge() || this.isLoon() ? (this.isSurge() && this.isNeedRewrite && (t.headers = t.headers || {}, Object.assign(t.headers, { "X-Surge-Skip-Scripting": !1 })), $httpClient.get(t, (t, s, i) => { !t && s && (s.body = i, s.statusCode = s.status), e(t, s, i) })) : this.isQuanX() ? (this.isNeedRewrite && (t.opts = t.opts || {}, Object.assign(t.opts, { hints: !1 })), $task.fetch(t).then(t => {
-        const {
-          statusCode: s,
-          statusCode: i,
-          headers: r,
-          body: o
-        } = t;
-        e(null, { status: s, statusCode: i, headers: r, body: o }, o)
-      }, t => e(t))) : this.isNode() && (this.initGotEnv(t), this.got(t).on("redirect", (t, e) => {
-        try {
-          if (t.headers["set-cookie"]) {
-            const s = t.headers["set-cookie"].map(this.cktough.Cookie.parse).toString();
-            s && this.ckjar.setCookieSync(s, null), e.cookieJar = this.ckjar
-          }
-        } catch (t) { this.logErr(t) }
-      }).then(t => {
-        const { statusCode: s, statusCode: i, headers: r, body: o } = t;
-        e(null, { status: s, statusCode: i, headers: r, body: o }, o)
-      }, t => {
-        const { message: s, response: i } = t;
-        e(s, i, i && i.body)
-      }))
-    }
-
-    post (t, e = (() => { })) {
-      if (t.body && t.headers && !t.headers["Content-Type"] && (t.headers["Content-Type"] = "application/x-www-form-urlencoded"), t.headers && delete t.headers["Content-Length"], this.isSurge() || this.isLoon()) this.isSurge() && this.isNeedRewrite && (t.headers = t.headers || {}, Object.assign(t.headers, { "X-Surge-Skip-Scripting": !1 })), $httpClient.post(t, (t, s, i) => { !t && s && (s.body = i, s.statusCode = s.status), e(t, s, i) }); else if (this.isQuanX()) t.method = "POST", this.isNeedRewrite && (t.opts = t.opts || {}, Object.assign(t.opts, { hints: !1 })), $task.fetch(t).then(t => {
-        const {
-          statusCode: s,
-          statusCode: i,
-          headers: r,
-          body: o
-        } = t;
-        e(null, { status: s, statusCode: i, headers: r, body: o }, o)
-      }, t => e(t)); else if (this.isNode()) {
-        this.initGotEnv(t);
-        const { url: s, ...i } = t;
-        this.got.post(s, i).then(t => {
-          const { statusCode: s, statusCode: i, headers: r, body: o } = t;
-          e(null, { status: s, statusCode: i, headers: r, body: o }, o)
-        }, t => {
-          const { message: s, response: i } = t;
-          e(s, i, i && i.body)
-        })
-      }
-    }
-
-    time (t, e = null) {
-      const s = e ? new Date(e) : new Date;
-      let i = {
-        "M+": s.getMonth() + 1,
-        "d+": s.getDate(),
-        "H+": s.getHours(),
-        "m+": s.getMinutes(),
-        "s+": s.getSeconds(),
-        "q+": Math.floor((s.getMonth() + 3) / 3),
-        S: s.getMilliseconds()
+    time (t, x = null) {
+      let xt = x ? new Date(x) : new Date;
+      let e = {
+        "M+": xt.getMonth() + 1,
+        "d+": xt.getDate(),
+        "h+": xt.getHours(),
+        "m+": xt.getMinutes(),
+        "s+": xt.getSeconds(),
+        "q+": Math.floor((xt.getMonth() + 3) / 3),
+        S: this.padStr(xt.getMilliseconds(), 3)
       };
-      /(y+)/.test(t) && (t = t.replace(RegExp.$1, (s.getFullYear() + "").substr(4 - RegExp.$1.length)));
-      for (let e in i) new RegExp("(" + e + ")").test(t) && (t = t.replace(RegExp.$1, 1 == RegExp.$1.length ? i[e] : ("00" + i[e]).substr(("" + i[e]).length)));
-      return t
+      /(y+)/.test(t) && (t = t.replace(RegExp.$1, (xt.getFullYear() + "").substr(4 - RegExp.$1.length)));
+      for (let s in e) new RegExp("(" + s + ")").test(t) && (t = t.replace(RegExp.$1, 1 == RegExp.$1.length ? e[s] : ("00" + e[s]).substr(("" + e[s]).length)));
+      return t;
     }
-
-    msg (e = t, s = "", i = "", r) {
-      const o = t => {
-        if (!t) return t;
-        if ("string" == typeof t) return this.isLoon() ? t : this.isQuanX() ? { "open-url": t } : this.isSurge() ? { url: t } : void 0;
-        if ("object" == typeof t) {
-          if (this.isLoon()) {
-            let e = t.openUrl || t.url || t["open-url"], s = t.mediaUrl || t["media-url"];
-            return { openUrl: e, mediaUrl: s }
-          }
-          if (this.isQuanX()) {
-            let e = t["open-url"] || t.url || t.openUrl, s = t["media-url"] || t.mediaUrl;
-            return { "open-url": e, "media-url": s }
-          }
-          if (this.isSurge()) {
-            let e = t.url || t.openUrl || t["open-url"];
-            return { url: e }
-          }
-        }
-      };
-      if (this.isMute || (this.isSurge() || this.isLoon() ? $notification.post(e, s, i, o(r)) : this.isQuanX() && $notify(e, s, i, o(r))), !this.isMuteLog) {
-        let t = ["", "==============📣系统通知📣=============="];
-        t.push(e), s && t.push(s), i && t.push(i), console.log(t.join("\n")), this.logs = this.logs.concat(t)
+    async showmsg () {
+      if (!this.notifyFlag) return;
+      if (!this.notifyStr.length) return;
+      var notify = require('./sendNotify');
+      this.log('\n============== 推送 ==============');
+      await notify.sendNotify(this.name, this.notifyStr.join('\n'));
+    }
+    padStr (num, length, opt = {}) {
+      let padding = opt.padding || '0';
+      let mode = opt.mode || 'l';
+      let numStr = String(num);
+      let numPad = (length > numStr.length) ? (length - numStr.length) : 0;
+      let pads = '';
+      for (let i = 0; i < numPad; i++) {
+        pads += padding;
       }
+      if (mode == 'r') {
+        numStr = numStr + pads;
+      } else {
+        numStr = pads + numStr;
+      }
+      return numStr;
     }
-
-    log (...t) { t.length > 0 && (this.logs = [...this.logs, ...t]), console.log(t.join(this.logSeparator)) }
-
-    logErr (t, e) {
-      const s = !this.isSurge() && !this.isQuanX() && !this.isLoon();
-      s ? this.log("", `❗️${this.name}, 错误!`, t.stack) : this.log("", `❗️${this.name}, 错误!`, t)
+    json2str (obj, c, encode = false) {
+      let ret = [];
+      for (let keys of Object.keys(obj).sort()) {
+        let v = obj[keys];
+        if (v && encode) v = encodeURIComponent(v);
+        ret.push(keys + '=' + v);
+      }
+      return ret.join(c);
     }
-
-    wait (t) { return new Promise(e => setTimeout(e, t)) }
-
-    done (t = {}) {
-      const e = (new Date).getTime(), s = (e - this.startTime) / 1e3;
-      this.log("", `🔔${this.name}, 结束! 🕛 ${s} 秒`), this.log(), (this.isSurge() || this.isQuanX() || this.isLoon()) && $done(t)
+    str2json (str, decode = false) {
+      let ret = {};
+      for (let item of str.split('&')) {
+        if (!item) continue;
+        let idx = item.indexOf('=');
+        if (idx == -1) continue;
+        let k = item.substr(0, idx);
+        let v = item.substr(idx + 1);
+        if (decode) v = decodeURIComponent(v);
+        ret[k] = v;
+      }
+      return ret;
     }
-  }(t, e)
+    randomPattern (pattern, charset = 'abcdef0123456789') {
+      let str = '';
+      for (let chars of pattern) {
+        if (chars == 'x') {
+          str += charset.charAt(Math.floor(Math.random() * charset.length));
+        } else if (chars == 'X') {
+          str += charset.charAt(Math.floor(Math.random() * charset.length)).toUpperCase();
+        } else {
+          str += chars;
+        }
+      }
+      return str;
+    }
+    randomString (len, charset = 'abcdef0123456789') {
+      let str = '';
+      for (let i = 0; i < len; i++) {
+        str += charset.charAt(Math.floor(Math.random() * charset.length));
+      }
+      return str;
+    }
+    randomList (a) {
+      let idx = Math.floor(Math.random() * a.length);
+      return a[idx];
+    }
+    wait (t) {
+      return new Promise(e => setTimeout(e, t));
+    }
+    async exitNow () {
+      await this.showmsg();
+      let e = Date.now();
+      let s = (e - this.startTime) / 1000;
+      this.log('');
+      this.log(`[${this.name}]运行结束，共运行了${s}秒`, { time: true });
+      process.exit(0);
+    }
+  }
+    (name)
 }
