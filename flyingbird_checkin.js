@@ -71,13 +71,15 @@ async function main () {
   //多账号分割,这里默认是换行(\n)分割,其他情况自己实现
   //split('\n')会把字符串按照换行符分割, 并把结果存在user_ck数组里
 
-  let user_ck = env.split('\n');
+  let user_ck = env.includes('\n') ? env.split('\n') : env.split('&');
+  // console.log('user_ck', user_ck);
 
   let index = 1; //用来给账号标记序号, 从1开始
   //循环遍历每个账号
   for (let ck of user_ck) {
     if (!ck) continue; //跳过空行
 
+    // console.log('ck:', ck);
     // 账号用#分割
     const account = ck.split('#')
     // 邮箱
@@ -132,28 +134,29 @@ const login = async (user) => {
       timeout: 15000,
     }
     //解构返回
-    // console.log('哈哈哈哈', await request(options));
+    // console.log('登录的结果', await request(options));
     const { result, headers } = await request(options);
     // console.log('登录result', result);
-    // console.log('cookie====', headers['set-cookie']);
-    const cookieArr = headers['set-cookie']
-    let cookie = ''
-    cookieArr.forEach(item => {
-      cookie += item
-    })
-
-    // console.log('处理前的cookie', cookie);
-    // 处理cookie格式
-    cookie = cookie.replace(/'/g, '').replace(/\s+/g, '').replace(/path\=\//g, '');
+    
 
     // console.log('处理后的cookie', cookie);
     if (result?.ret === 1) {
+      // console.log('cookie====', headers['set-cookie']);
+      const cookieArr = headers['set-cookie']
+      let cookie = ''
+      cookieArr.forEach(item => {
+        cookie += item
+      })
+  
+      // console.log('处理前的cookie', cookie);
+      // 处理cookie格式
+      cookie = cookie.replace(/'/g, '').replace(/\s+/g, '').replace(/path\=\//g, '');
       console.log(`账号${user.email}，${result?.msg}`)
       console.log('====开始执行签到任务====');
       await signin(cookie, user)
     } else {
       //打印请求错误信息
-      console.log(`账号${user.email}[${result?.ret}]: ${result?.msg}`);
+      console.log(`账号${user.email}（${result?.ret}）: ${result?.msg}`);
     }
   } catch (error) {
     //打印错误信息
