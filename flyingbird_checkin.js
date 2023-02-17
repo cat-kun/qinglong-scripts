@@ -1,6 +1,10 @@
 /*
-飞鸟机场签到 https://www.fyb-aff.com/auth/register?code=MYQJ
+飞鸟机场签到 注册地址：https://www.fyb-aff.com/auth/register?code=MYQJ
 以下都以青龙或nodejs环境为准
+
+变量支持账号密码，多账号用\n分割
+单账号：export fybCookie = '账号#密码'
+多账号：export fybCookie = '账号1#密码\n账号2#密码'
 
 下面一行是建议定时,青龙拉库会自动读取
 cron: 0 0 * * *
