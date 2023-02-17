@@ -63,8 +63,10 @@ async function main () {
     console.log(`没有填写变量: ${env_name}`);
     return;
   }
+  // console.log('账号信息', env);
   //多账号分割,这里默认是换行(\n)分割,其他情况自己实现
   //split('\n')会把字符串按照换行符分割, 并把结果存在user_ck数组里
+
   let user_ck = env.split('\n');
 
   let index = 1; //用来给账号标记序号, 从1开始
@@ -72,9 +74,17 @@ async function main () {
   for (let ck of user_ck) {
     if (!ck) continue; //跳过空行
 
+    // 账号用#分割
+    const account = ck.split('#')
+    // 邮箱
+    let email = account[0]
+    // 密码
+    let passwd = account[1]
+
     let user = {
       index,
-      cookie: ck
+      email,
+      passwd,
     };
     index = index + 1; //每次用完序号+1
     //开始账号任务
@@ -89,15 +99,73 @@ async function main () {
 async function userTask (user) {
   //任务逻辑都放这里了, 与脚本入口分开, 方便分类控制并模块化
   console.log(`\n============= 账号[${user.index}]开始任务 =============`)
-  await signin(user)
+  await login(user)
+
+  // await signin(user)
 }
 
-//签到接口
-async function signin (user) {
+/** 登录 */
+const login = async (user) => {
+  try {
+    const options = {
+      method: 'post', //post方法
+
+      //url问号前面的地址
+      url: 'http://flyingbird.pro/auth/login',
+
+      //请求头, 所有接口通用
+      headers: {
+        Connection: 'keep-alive',
+        'Accept-Encoding': 'gzip,compress,br,deflate',
+        'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_1_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 MicroMessenger/8.0.32(0x1800202f) NetType/WIFI Language/zh_CN',
+        Referer: 'https://servicewechat.com/wxaa75ffd8c2d75da7/56/page-frame.html',
+      },
+      json: {
+        email: user.email,
+        passwd: user.passwd,
+      },
+      //超时设置
+      timeout: 15000,
+    }
+    //解构返回
+    // console.log('哈哈哈哈', await request(options));
+    const { result, headers } = await request(options);
+    // console.log('登录result', result);
+    // console.log('cookie====', headers['set-cookie']);
+    const cookieArr = headers['set-cookie']
+    let cookie = ''
+    cookieArr.forEach(item => {
+      cookie += item
+    })
+
+    // console.log('处理前的cookie', cookie);
+    // 处理cookie格式
+    cookie = cookie.replace(/'/g, '').replace(/\s+/g, '').replace(/path\=\//g, '');
+
+    // console.log('处理后的cookie', cookie);
+    if (result?.ret === 1) {
+      console.log(`账号${user.email}，${result?.msg}`)
+      console.log('====开始执行签到任务====');
+      await signin(cookie, user)
+    } else {
+      //打印请求错误信息
+      console.log(`账号${user.email}[${result?.ret}]: ${result?.msg}`);
+    }
+  } catch (error) {
+    //打印错误信息
+    console.log(error);
+  }
+}
+
+/**
+ * 签到接口
+ * @param {string} cookie 登录后返回的cookie
+ * @param {object} user 用户信息
+ */
+async function signin (cookie, user) {
   try {
 
     let urlObject = {
-      // fn: 'signin',
       method: 'post', //post方法
 
       //url问号前面的地址
@@ -109,7 +177,7 @@ async function signin (user) {
         'Accept-Encoding': 'gzip,compress,br,deflate',
         'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_1_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 MicroMessenger/8.0.32(0x1800202f) NetType/WIFI Language/zh_CN',
         Referer: 'https://servicewechat.com/wxaa75ffd8c2d75da7/56/page-frame.html',
-        Cookie: user.cookie
+        Cookie: cookie
       },
 
       //超时设置
@@ -118,12 +186,12 @@ async function signin (user) {
 
     //解构返回
     const { result } = await request(urlObject);
-    // console.log('result', result);
-    if (result?.ret !== 0) {
-      console.log(`账号[${user.index}]签到成功`)
+    // console.log('====签到result', result);
+    if (result?.ret === 1) {
+      console.log(`账号[${user.email}]签到成功，${result?.msg}`)
     } else {
       //打印请求错误信息
-      console.log(`账号[${user.index}]签到失败[${result?.ret}]: ${result?.msg}`);
+      console.log(`账号[${user.email}]签到失败[${result?.ret}]: ${result?.msg}`);
     }
   } catch (e) {
     //打印错误信息
