@@ -22,133 +22,121 @@ const got = require('got'); //青龙发包依赖
 const env_name = 'topsportsCookie'; //环境变量名字
 const env = process.env[env_name] || ''; //或 process.env.zippoCookie, node读取变量方法. 后面的 || 表示如果前面结果为false或者空字符串或者null或者undifined, 就取后面的值
 
-//got的基本用法, 封装一下方便之后直接调用, 新手可以不动他直接用就行
-async function request (opt) {
-  const DEFAULT_RETRY = 3; //请求出错重试三次
-  var resp = null, count = 0;
-  var fn = opt.fn || opt.url;
-  opt.method = opt?.method?.toUpperCase() || 'GET';
-  while (count++ < DEFAULT_RETRY) {
-    try {
-      var err = null;
-      const errcodes = ['ECONNRESET', 'EADDRINUSE', 'ENOTFOUND', 'EAI_AGAIN'];
-      await got(opt).then(t => {
-        resp = t
-      }, e => {
-        err = e;
-        resp = e.response;
-      });
-      if (err) {
-        if (err.name == 'TimeoutError') {
-          console.log(`[${fn}]请求超时(${err.code})，重试第${count}次`);
-        } else if (errcodes.includes(err.code)) {
-          console.log(`[${fn}]请求错误(${err.code})，重试第${count}次`);
-        } else {
-          let statusCode = resp?.statusCode || -1;
-          console.log(`[${fn}]请求错误(${err.message}), 返回[${statusCode}]`);
-          break;
-        }
-      } else {
-        break;
-      }
-    } catch (e) {
-      console.log(`[${fn}]请求错误(${e.message})，重试第${count}次`);
-    };
-  }
-  let { statusCode = -1, headers = null, body = null } = resp;
-  if (body) try { body = JSON.parse(body); } catch { };
-  return { statusCode, headers, result: body };
-}
-
-//脚本入口函数main()
+// 主函数入口，负责执行签到任务
 async function main () {
   if (env == '') {
-    //没有设置变量,直接退出
     console.log(`没有填写变量: ${env_name}`);
     return;
   }
-  // console.log('账号信息', env);
-  //多账号分割,这里默认是换行(\n)分割,其他情况自己实现
-  //split('\n')会把字符串按照换行符分割, 并把结果存在user_ck数组里
 
+  // 分割多账号的Cookie信息，支持用换行或&分隔
   let user_ck = env.includes('\n') ? env.split('\n') : env.split('&');
-  // console.log('user_ck', user_ck);
+  let index = 1; // 用于给每个账号分配编号
 
-  let index = 1; //用来给账号标记序号, 从1开始
-  //循环遍历每个账号
+  // 遍历每个账号
   for (let ck of user_ck) {
-    if (!ck) continue; //跳过空行
+    if (!ck) continue; // 跳过空行
 
-    // console.log('ck:', ck);
-    // 账号用#分割
-    const account = ck.split('#')
-    let cookie = account[0]
+    // 获取账号和密码
+    const account = ck.split('#');
+    let user = { index, cookie: account[0] }; // 保存用户信息
+    index++; // 增加账号序号
 
-    let user = {
-      index,
-      cookie,
-    };
-    index = index + 1; //每次用完序号+1
-    //开始账号任务
+    // 执行当前账号的任务
     await userTask(user);
-    //每个账号之间等1~5秒随机时间
-    // let rnd_time = Math.floor(Math.random() * 4000) + 1000;
-    // console.log(`账号[${user.index}]随机等待${rnd_time / 1000}秒...`);
-    // await $.wait(rnd_time);
   }
 }
 
+// 单个用户任务，包括签到
 async function userTask (user) {
-  //任务逻辑都放这里了, 与脚本入口分开, 方便分类控制并模块化
-  console.log(`\n============= 账号[${user.index}]开始任务 =============`)
-  // await login(user)
-
-  await signin(user)
+  console.log(`\n============= 账号[${user.index}]开始任务 =============`);
+  await signin(user); // 调用签到函数
 }
 
+// 获取请求配置的函数，动态生成请求头和请求体
+function getRequestOptions (user) {
+  return {
+    method: 'POST',
+    url: 'https://m.topsports.com.cn/h5/act/signIn/doSign',
+    headers: {
+      'brandCode': 'TS',
+      'Cookie': user.cookie, // 使用当前用户的Cookie
+      'User-Agent': 'Apifox/1.0.0 (https://apifox.com)',
+      'Content-Type': 'application/json',
+      'Accept': '*/*',
+      'Host': 'm.topsports.com.cn',
+      'Connection': 'keep-alive',
+    },
+    body: JSON.stringify({
+      "activityId": "0ae7d533258944bdae0aa23ce55925ec", // 活动ID
+      "brandCode": "TS" // 品牌代码
+    })
+  };
+}
 
-/**
- * 异步签到函数
- * @param {Object} user 包含用户信息的对象，至少包含index属性标识用户账号
- * @returns {Promise} 没有指定具体的返回值，但通过console.log输出签到结果
- */
+// 签到函数，负责执行每个用户的签到操作
 async function signin (user) {
   try {
-    // 创建请求配置对象
-    const options = {
-      'method': 'POST',
-      'url': 'https://m.topsports.com.cn/h5/act/signIn/doSign',
-      'headers': {
-        'brandCode': 'TS',
-        'Cookie': user.cookie,
-        'User-Agent': 'Apifox/1.0.0 (https://apifox.com)',
-        'Content-Type': 'application/json',
-        'Accept': '*/*',
-        'Host': 'm.topsports.com.cn',
-        'Connection': 'keep-alive'
-      },
-      body: JSON.stringify({
-        "activityId": "0ae7d533258944bdae0aa23ce55925ec",
-        "brandCode": "TS"
-      })
-    };
-
-    // 使用await等待请求结果
+    // 获取请求配置
+    const options = getRequestOptions(user);
+    // 执行请求
     const { result } = await request(options);
-    // 根据结果输出签到信息或错误信息
+
+    // 根据签到结果输出不同的提示
     if (result?.code === 1) {
       console.log(`账号[${user.index}]签到状态：${result?.bizMsg}`);
     } else {
       console.log(`账号[${user.index}]签到状态：[${result?.code}]: ${result?.bizMsg}`);
     }
   } catch (e) {
-    // 输出任何捕获的异常
-    console.log(e);
+    // 捕获并输出错误信息
+    console.error(`账号[${user.index}]签到出错:`, e);
   }
 }
 
+// 封装请求函数，支持重试机制
+async function request (opt) {
+  const DEFAULT_RETRY = 3; // 默认重试次数
+  let resp = null;
+  let count = 0;
 
-//调用main()
+  // 重试机制
+  while (count++ < DEFAULT_RETRY) {
+    try {
+      const errcodes = ['ECONNRESET', 'EADDRINUSE', 'ENOTFOUND', 'EAI_AGAIN']; // 需要重试的错误码
+      const response = await got(opt); // 发起请求
+      resp = response;
+      break;
+    } catch (err) {
+      // 捕获请求错误并判断是否需要重试
+      if (err.name === 'TimeoutError') {
+        console.log(`[${opt.url}] 请求超时(${err.code})，重试第${count}次`);
+      } else if (errcodes.includes(err.code)) {
+        console.log(`[${opt.url}] 请求错误(${err.code})，重试第${count}次`);
+      } else {
+        console.log(`[${opt.url}] 请求错误(${err.message})`);
+        break;
+      }
+    }
+  }
+
+  // 获取响应的状态码和body
+  const { statusCode = -1, body = null } = resp;
+  let parsedBody = null;
+  // 尝试解析响应体
+  if (body) {
+    try {
+      parsedBody = JSON.parse(body);
+    } catch (e) {
+      console.log('解析响应体失败:', e);
+    }
+  }
+
+  // 返回响应结果
+  return { statusCode, result: parsedBody };
+}
+
+// 调用主函数
 main();
 
 function Env (name) {

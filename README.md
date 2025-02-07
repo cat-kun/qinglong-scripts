@@ -1,25 +1,6 @@
 # qinglong-scripts
-青龙脚本（收集各位大佬）
 
-- [x] 口味王小程序（新
-- [x] 快手极速版5w
-- [x] 开卡
+青龙脚本
 
-## 口味王抓包
-
-- windows抓包
-
->1、抓包工具下载：https://github.com/cat-kun/qinglong-scripts/blob/master/kwwCK_V1.3.exe
->
->2、打开上面下载的抓包工具
->
->3、电脑微信打开口味王小程序 #小程序:口味王会员中心
->
->4、授权登录口味王小程序
->
->5、点击“获取并复制”
->
->![Windows口味王抓包](https://user-images.githubusercontent.com/8529528/209074196-52895823-18c5-499c-af95-bcb8b0833eee.png)
-
-- IOS抓包：推荐使用[Stream App](https://apps.apple.com/us/app/stream-network-debug-tool/id1312141691)
-- 安卓使用httpcanary（小黄鸟）免root抓包教程：https://www.kejiwanjia.com/jiaocheng/67288.html
+- IOS 抓包：推荐使用[Stream App](https://apps.apple.com/us/app/stream-network-debug-tool/id1312141691)
+- 安卓使用 httpcanary（小黄鸟）免 root 抓包教程：https://www.kejiwanjia.com/jiaocheng/67288.html
