@@ -5,121 +5,113 @@ const crypto = require('crypto');
 const env_name = 'NAMISCOOKIES'; // 存储Cookie的环境变量
 const env = process.env[env_name] || ''; // 获取环境变量
 
-// 主函数入口
+async function request (opt) {
+  const DEFAULT_RETRY = 3;
+  var resp = null, count = 0;
+  var fn = opt.fn || opt.url;
+  opt.method = opt?.method?.toUpperCase() || 'GET';
+  while (count++ < DEFAULT_RETRY) {
+    try {
+      var err = null;
+      const errcodes = ['ECONNRESET', 'EADDRINUSE', 'ENOTFOUND', 'EAI_AGAIN'];
+      await got(opt).then(t => {
+        resp = t
+      }, e => {
+        err = e;
+        resp = e.response;
+      });
+      if (err) {
+        if (err.name == 'TimeoutError') {
+          console.log(`[${fn}]请求超时(${err.code})，重试第${count}次`);
+        } else if (errcodes.includes(err.code)) {
+          console.log(`[${fn}]请求错误(${err.code})，重试第${count}次`);
+        } else {
+          let statusCode = resp?.statusCode || -1;
+          console.log(`[${fn}]请求错误(${err.message}), 返回[${statusCode}]`);
+          break;
+        }
+      } else {
+        break;
+      }
+    } catch (e) {
+      console.log(`[${fn}]请求错误(${e.message})，重试第${count}次`);
+    };
+  }
+  let { statusCode = -1, headers = null, body = null } = resp;
+  if (body) try { body = JSON.parse(body); } catch { };
+  return { statusCode, headers, result: body };
+}
+
 async function main () {
   if (env == '') {
-    $.log(`没有填写变量: ${env_name}`);
+    console.log(`没有填写变量: ${env_name}`);
     return;
   }
-
-  // 分割多账号的Cookie信息，支持用换行分隔
-  let cookies = env.split('\n');
+  let user_ck = env.includes('\n') ? env.split('\n') : env.split('&');
   let index = 1;
-
-  for (let cookie of cookies) {
-    if (!cookie) continue;
-
-    let user = { index, cookie };
-    index++;
-
+  for (let ck of user_ck) {
+    if (!ck) continue;
+    const account = ck.split('#')
+    let cookie = account[0]
+    let user = {
+      index,
+      cookie,
+    };
+    index = index + 1;
     await userTask(user);
   }
 }
 
-// 单个用户任务
 async function userTask (user) {
-  $.log(`\n============= 账号[${user.index}]开始任务 =============`);
-  await signin(user);
+  console.log(`\n============= 账号[${user.index}]开始任务 =============`)
+  await signin(user)
 }
 
-// 获取请求配置
-function getRequestOptions (user) {
-  const timestamp = new Date().toISOString();
-  const signnonce = Math.random().toString(36).substr(2, 15) + Math.random().toString(36).substr(2, 15);
-
-  const strToSign = `api_version=20250208&app_name=namiso&app_version=2.2.1.84&device_platform=iOS&format=JSON&idfa=00000000-0000-0000-0000-000000000000&idfv=8EC19684-34B0-4AE6-A3B3-B1A502DF2948&mid=8ec19684-34b0-4ae6-a3b3-b1a502df2948&sign_method=SHA256&sign_version=2.0.0&signnonce=${signnonce}&timestamp=${timestamp}`;
-
-  const sign = crypto.createHash('sha256').update(strToSign).digest('hex');
-
-  return {
-    method: 'POST',
-    url: 'https://api.so.n.cn/api/user/coin/checkin',
-    headers: {
-      'Host': 'api.so.n.cn',
-      'Content-Type': 'application/x-www-form-urlencoded; charset=utf-8',
-      'Accept': '*/*',
-      'User-Agent': 'NAMISo/2.2.1 (iPhone; iOS 18.3; Scale/3.00; iPhone17,1)',
-      'Accept-Language': 'zh-Hans-CN;q=1',
-      'Accept-Encoding': 'gzip, deflate, br',
-      'Connection': 'keep-alive',
-      'access-token': 'access_token', // 假设access_token在Cookie中
-      'Cookie': user.cookie,
-      'sign': sign,
-      'signnonce': signnonce,
-      'timestamp': timestamp
-    }
-  };
-}
-
-// 签到函数
 async function signin (user) {
   try {
-    const options = getRequestOptions(user);
-    const { statusCode, result } = await request(options);
-
-    if (statusCode === 200 && result.code === 0) {
-      $.log(`账号[${user.index}]签到成功`);
+    const options = {
+      method: 'POST',
+      url: 'https://api.so.n.cn/api/user/coin/checkin',
+      headers: {
+        'brandCode': 'TS',
+        'Content-Type': 'application/x-www-form-urlencoded; charset=utf-8',
+        'access-token': 'access_token',
+        'Cookie': user.cookie,
+        'User-Agent': 'NAMISo/2.2.1 (iPhone; iOS 18.3; Scale/3.00; iPhone17,1)',
+        'Accept': '*/*',
+        'Host': 'api.so.n.cn',
+        'Connection': 'keep-alive',
+        'Accept-Language': 'zh-Hans-CN;q=1',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'sign': '00187ef18bb31c296b166368dd040e11d71e6ae6494ac10287c5ef4d18a47235'
+      },
+      searchParams: {
+        api_version: '20250208',
+        app_name: 'namiso',
+        app_version: '2.2.1.84',
+        device_platform: 'iOS',
+        format: 'JSON',
+        idfa: '00000000-0000-0000-0000-000000000000',
+        idfv: '8EC19684-34B0-4AE6-A3B3-B1A502DF2948',
+        mid: '8ec19684-34b0-4ae6-a3b3-b1a502df2948',
+        sign_method: 'SHA256',
+        sign_version: '2.0.0',
+        signnonce: '17390035580248182016708365',
+        timestamp: '2025-02-08T08:32:38Z'
+      }
+    };
+    const { result } = await request(options);
+    if (result?.code === 0) {
+      console.log(`账号[${user.index}]签到成功: ${result?.msg}`);
     } else {
-      $.log(`账号[${user.index}]签到失败: ${result?.msg || '未知错误'}`);
+      console.log(`账号[${user.index}]签到失败: ${result?.msg}`);
     }
   } catch (e) {
-    $.log(`账号[${user.index}]签到出错: ${e.message}`);
+    console.log(e);
   }
 }
 
-// 封装请求函数
-async function request (opt) {
-  const DEFAULT_RETRY = 3;
-  let resp = null;
-  let count = 0;
-
-  while (count++ < DEFAULT_RETRY) {
-    try {
-      const response = await got(opt);
-      resp = response;
-      break;
-    } catch (err) {
-      if (err instanceof Error) {
-        const errCodes = ['ECONNRESET', 'EADDRINUSE', 'ENOTFOUND', 'EAI_AGAIN'];
-        if (errCodes.includes(err.code)) {
-          $.log(`[${opt.url}] 请求错误(${err.code})，重试第${count}次`);
-          if (count >= DEFAULT_RETRY) throw err;
-          await $.wait(1000);
-          continue;
-        }
-      }
-      throw err;
-    }
-  }
-
-  const { statusCode = -1, body = null } = resp;
-  let result = null;
-
-  if (body) {
-    try {
-      result = JSON.parse(body);
-    } catch (e) {
-      $.log('解析响应体失败:', e);
-    }
-  }
-
-  return { statusCode, result };
-}
-
-// 执行主函数
 main();
-
-// Env类定义保持不变
 function Env (name) {
   return new class {
     constructor(name) {
@@ -267,5 +259,5 @@ function Env (name) {
       this.log(`[${this.name}]运行结束，共运行了${s}秒`, { time: true });
       process.exit(0);
     }
-  }(name);
+  }(name)
 }
