@@ -1,7 +1,12 @@
 /**
  * 易票哒小程序余票通知数
  * 环境变量格式：
- * export ticketddNotifyParams='openId1@templateId1@token1@...&openId2@templateId2@token2'
+ * - 每组参数用 @ 分隔：
+ * - openId：用户的 openId
+ * - templateId：模板 ID
+ * - token：用户的 token（从 authorization: 字段中复制）
+ * - 次数：该账号执行请求的次数
+ * export ticketddNotifyParams='oHNik7eRWgTyOyJoRBvAewBlSFkM@mWqodwFSF1Cy6MvfRljBDNDo2__4p4ijZ__ztOCeHEk@55'
  */
 
 
