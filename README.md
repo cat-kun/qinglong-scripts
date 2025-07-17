@@ -26,7 +26,7 @@
   </p>
 </div>
 
-<div align="center" style="display: none">
+<!-- <div align="center" style="display: none">
 
 |适配框架|npm包|最新版本|npm下载量|
 | :-: | :-: | :-: | :-: |
@@ -37,7 +37,7 @@
 |`Taro3.x`|[@lucky-canvas/taro](https://100px.net/usage/taro.html)|<img src="https://img.shields.io/npm/v/@lucky-canvas/taro?color=%23ffba15&logo=npm&style=flat-square" alt="version" />|<a href="https://www.npmjs.com/package/@lucky-canvas/taro" target="_black"><img src="https://img.shields.io/npm/dm/@lucky-canvas/taro?color=%23ffba15&logo=npm&style=flat-square" alt="downloads" /></a>|-|
 |`微信小程序`|[@lucky-canvas/mini](https://100px.net/usage/wx.html)|<img src="https://img.shields.io/npm/v/@lucky-canvas/mini?color=%23ffba15&logo=npm&style=flat-square" alt="version" />|<a href="https://www.npmjs.com/package/@lucky-canvas/mini" target="_black"><img src="https://img.shields.io/npm/dm/@lucky-canvas/mini?color=%23ffba15&logo=npm&style=flat-square" alt="downloads" /></a>|-|
 
-</div>
+</div> -->
 
 <br />
 
