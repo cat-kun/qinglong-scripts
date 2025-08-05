@@ -1,0 +1,93 @@
+{
+    "id": "ChinaMobile.app.sub",
+    "name": "ChinaMobile 的应用订阅",
+    "author": "ChinaMobileDev",
+    "icon": "https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/92/8b/03/928b0371-20fc-288b-e4e4-05f48b7082c2/AppIcon-0-0-1x_U007emarketing-0-7-0-0-85-220.png/144x144.png",
+    "repo": "https://github.com/ChinaTelecomOperators",
+    "apps": [
+        {
+            "id": "ChinaMobile.10086",
+            "name": "移动余量",
+            "descs_html": [
+                "1. 填写手机号码",
+                "2. 添加对应插件/重写/模块",
+                "3. 打开App(保证已登录且不是风险用户), 提示捕获参数成功即可使用该脚本",
+                "4. 手动执行 查看结果"
+            ],
+            "keys": [
+                "china_mobile_debug",
+                "china_mobile_phonenumber",
+                "china_mobile_params",
+                "china_mobile_cookie",
+                "china_mobile_bark_key",
+                "china_mobile_silent",
+                "china_mobile_service"
+            ],
+            "author": "ChinaMobileDev",
+            "repo": "https://github.com/ChinaTelecomOperators/ChinaMobile",
+            "scripts": [
+                {
+                    "name": "手动执行查询（⚠️ 执行前请确认配置正确）",
+                    "script": "https://github.com/ChinaTelecomOperators/ChinaMobile/releases/download/Prerelease-Alpha/10086.js"
+                }
+            ],
+            "settings": [
+                {
+                    "id": "china_mobile_debug",
+                    "name": "是否开启调试模式",
+                    "val": false,
+                    "type": "boolean",
+                    "desc": ""
+                },
+                {
+                    "id": "china_mobile_phonenumber",
+                    "name": "手机号码",
+                    "val": null,
+                    "type": "text",
+                    "desc": ""
+                },
+                {
+                    "id": "china_mobile_params",
+                    "name": "加密参数",
+                    "val": null,
+                    "type": "textarea",
+                    "rows": 5,
+                    "desc": ""
+                },
+                {
+                    "id": "china_mobile_cookie",
+                    "name": "Cookie",
+                    "val": null,
+                    "type": "textarea",
+                    "rows": 5,
+                    "desc": ""
+                },
+                {
+                    "id": "china_mobile_bark_key",
+                    "name": "Bark_Key",
+                    "val": null,
+                    "type": "text",
+                    "desc": "填写后优先使用Bark推送"
+                },
+                {
+                    "id": "china_mobile_silent",
+                    "name": "是否开启静默模式",
+                    "val": false,
+                    "type": "boolean",
+                    "desc": ""
+                },
+                {
+                    "id": "china_mobile_service",
+                    "name": "是否开启服务模式",
+                    "val": false,
+                    "type": "boolean",
+                    "desc": "配合小组件使用, 不知者无视"
+                }
+            ],
+            "icons": [
+                "https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/92/8b/03/928b0371-20fc-288b-e4e4-05f48b7082c2/AppIcon-0-0-1x_U007emarketing-0-7-0-0-85-220.png/144x144.png",
+                "https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/92/8b/03/928b0371-20fc-288b-e4e4-05f48b7082c2/AppIcon-0-0-1x_U007emarketing-0-7-0-0-85-220.png/144x144.png"
+            ]
+        }
+    ]
+}
