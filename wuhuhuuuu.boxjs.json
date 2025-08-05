@@ -1,0 +1,33 @@
+{
+  "id": "wuhuhuuuu.app.sub",
+  "name": "wuhuhuuuu",
+  "author": "@wuhuhuuuu",
+  "icon": "https://github.com/wuhuhuuuu/study/raw/main/wuhuhuuuu.PNG",
+  "repo": "https://github.com/wuhuhuuuu/study",
+  "apps": [
+    {
+      "id": "Tencent.Comic",
+      "name": "腾讯动漫",
+      "keys": ["Tencent_Comic"],
+      "author": "@wuhuhuuuu",
+      "script": "https://github.com/wuhuhuuuu/study/raw/main/Scripts/Tencent_Comic/Tencent.Comic.js",
+      "repo": "https://github.com/wuhuhuuuu/study/tree/main/Scripts/Tencent_Comic",
+      "icons": [
+        "https://github.com/wuhuhuuuu/study/raw/main/Scripts/Tencent_Comic/Tencent.Comic.png",
+        "https://github.com/wuhuhuuuu/study/raw/main/Scripts/Tencent_Comic/Tencent.Comic.png"
+      ]
+    },
+    {
+      "id": "wuhuhu.ChinaBroadnet",
+      "name": "中国广电",
+      "keys": ["@wuhuhu.ChinaBroadnet.url", "@wuhuhu.ChinaBroadnet.access", "@wuhuhu.ChinaBroadnet.body"],
+      "author": "@wuhuhuuuu",
+      "script": "https://github.com/wuhuhuuuu/study/raw/main/Scripts/ChinaBroadnet/ChinaBroadnet.js",
+      "repo": "https://github.com/wuhuhuuuu/study/tree/main/Scripts/ChinaBroadnet",
+      "icons": [
+        "https://github.com/wuhuhuuuu/study/raw/main/Scripts/ChinaBroadnet/ChinaBroadnet.png",
+        "https://github.com/wuhuhuuuu/study/raw/main/Scripts/ChinaBroadnet/ChinaBroadnet.png"
+      ]
+    }
+  ]
+}
