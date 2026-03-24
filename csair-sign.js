@@ -54,13 +54,12 @@ class CsairSignClient {
 
   /**
    * 执行签到请求
-   * @param {string} signDate - 签到日期 YYYY-MM-DD
    * @returns {Promise<Object>} 返回签到结果
    * @throws {Error} 请求失败时抛出错误
    * @example
-   * const result = await client.sign('2025-01-01');
+   * const result = await client.sign();
    */
-  async sign(signDate) {
+  async sign() {
     const { body } = await got.post(
       'https://wxapi.csair.com/marketing-tools/activity/join?type=APPTYPE&chanel=ss&lang=zh',
       {
@@ -82,7 +81,6 @@ class CsairSignClient {
           activityType: 'sign',
           channel: 'mini',
           entrance: 1,
-          signDate,
         },
         timeout: 10000,
       },
@@ -126,12 +124,12 @@ async function main() {
 async function handleAccount(cookie, index) {
   console.log(`\n======= 账号 ${index} 开始处理 =======`);
   const errcodes = ['ECONNRESET', 'ETIMEDOUT', 'EAI_AGAIN'];
-  const today = new Date().toISOString().split('T')[0];
+  showCookieHint(cookie, index);
   const client = new CsairSignClient(cookie);
 
   for (let retry = 1; retry <= 3; retry++) {
     try {
-      const result = await client.sign(today);
+      const result = await client.sign();
       showResult(result, index);
       return;
     } catch (error) {
@@ -144,6 +142,93 @@ async function handleAccount(cookie, index) {
       return;
     }
   }
+}
+
+/**
+ * 解析Cookie并输出关键登录态提示
+ * @param {string} cookie - 原始Cookie
+ * @param {number} index - 账号索引
+ * @returns {void}
+ */
+function showCookieHint(cookie, index) {
+  const token = getCookieValue(cookie, 'TOKEN');
+  if (!token) {
+    console.log(`⚠️ 账号 ${index} Cookie中未找到 TOKEN，可能无法通过登录校验`);
+    return;
+  }
+
+  const expireTs = extractTimestampFromToken(token);
+  if (!expireTs) {
+    console.log(`ℹ️ 账号 ${index} 未能解析 TOKEN 过期时间，将直接尝试签到`);
+    return;
+  }
+
+  const expireMs = expireTs * 1000;
+  const now = Date.now();
+  const expireText = new Date(expireMs).toLocaleString('zh-CN', {
+    hour12: false,
+  });
+  if (expireMs <= now) {
+    console.log(
+      `⚠️ 账号 ${index} TOKEN已过期（${expireText}），请重新抓取最新Cookie`,
+    );
+  } else {
+    const leftMin = Math.floor((expireMs - now) / 60000);
+    console.log(
+      `ℹ️ 账号 ${index} TOKEN有效期至 ${expireText}（剩余约${leftMin}分钟）`,
+    );
+  }
+}
+
+/**
+ * 从Cookie字符串中提取指定key
+ * @param {string} cookie - 原始Cookie
+ * @param {string} key - Cookie键
+ * @returns {string}
+ */
+function getCookieValue(cookie, key) {
+  if (!cookie || !key) return '';
+  const list = cookie.split(';');
+  for (const item of list) {
+    const i = item.indexOf('=');
+    if (i === -1) continue;
+    const k = item.slice(0, i).trim();
+    if (k !== key) continue;
+    return item.slice(i + 1).trim();
+  }
+  return '';
+}
+
+/**
+ * 从TOKEN中提取可识别的13位/10位时间戳
+ * @param {string} token - TOKEN字符串
+ * @returns {number|null}
+ */
+function extractTimestampFromToken(token) {
+  try {
+    // TOKEN通常包含一段base64片段，解码后可能含Unix时间戳
+    const normalized = token.replace(/-/g, '+').replace(/_/g, '/');
+    const decoded = Buffer.from(normalized, 'base64').toString('utf8');
+    const candidates = decoded.match(/\d{10,13}/g) || [];
+    for (const raw of candidates) {
+      const ts = Number(raw.length === 13 ? raw.slice(0, 10) : raw);
+      if (ts >= 1600000000 && ts <= 2200000000) {
+        return ts;
+      }
+    }
+  } catch (e) {
+    // ignore
+  }
+
+  // 兜底：直接从token本体中尝试提取
+  const fallback = token.match(/\d{10,13}/g) || [];
+  for (const raw of fallback) {
+    const ts = Number(raw.length === 13 ? raw.slice(0, 10) : raw);
+    if (ts >= 1600000000 && ts <= 2200000000) {
+      return ts;
+    }
+  }
+  return null;
 }
 
 /**
@@ -163,11 +248,18 @@ function showResult(data, index) {
   const success =
     data.code === 0 || data.success === true || data.respCode === '0000';
   const message = data.msg || data.message || data.respMsg || '未知结果';
+  const loginFailed =
+    /(登录信息失败|登录信息|未登录|认证失败|鉴权失败|token)/i.test(message);
 
   const baseInfo = [
     `${success ? '✅' : '❌'} 账号 ${index}`,
     `操作结果: ${message}`,
     `签到状态: ${success ? '成功' : '失败'}`,
+    ...(success || !loginFailed
+      ? []
+      : [
+          '诊断建议: 当前Cookie登录态疑似过期，请重新抓包更新 TOKEN/cs1246643sso',
+        ]),
   ];
 
   const extraInfo = [];
