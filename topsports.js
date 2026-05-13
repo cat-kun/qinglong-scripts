@@ -4,7 +4,8 @@
 */
 
 const $ = new Env('滔博签到');
-const got = require('got');
+const gotModule = require('got');
+const got = gotModule.default || gotModule.got || gotModule;
 
 // 环境变量配置
 const ENV_NAME = 'topsportsCookie';
@@ -42,7 +43,7 @@ async function dailySign (cookie) {
 
   for (let retry = 1; retry <= 3; retry++) {
     try {
-      const { body } = await got.post('https://m.topsports.com.cn/h5/act/signIn/doSign', {
+      const { body } = await post('https://m.topsports.com.cn/h5/act/signIn/doSign', {
         headers: {
           'brandCode': 'TS',
           'Cookie': cookie,
@@ -53,7 +54,9 @@ async function dailySign (cookie) {
           activityId: "0ae7d533258944bdae0aa23ce55925ec",
           brandCode: "TS"
         },
-        timeout: 10000 // 10秒超时
+        timeout: {
+          request: 10000 // 10秒超时
+        }
       });
 
       return JSON.parse(body);
@@ -66,6 +69,19 @@ async function dailySign (cookie) {
       throw error;
     }
   }
+}
+
+// 兼容青龙环境中不同 got 版本的导出方式
+function post (url, options) {
+  if (typeof got.post === 'function') {
+    return got.post(url, options);
+  }
+
+  if (typeof got === 'function') {
+    return got(url, { ...options, method: 'POST' });
+  }
+
+  throw new Error('当前 got 依赖不支持请求调用，请在青龙依赖管理中重新安装 got');
 }
 
 // 处理签到结果
